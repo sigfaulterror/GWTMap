@@ -86,7 +86,9 @@ COMPLEX_TYPES = {
     "CHAR": "java.lang.Char",
     "LONG": "java.lang.Long",
     "LIST": "java.util.List",
-    "ARRAY": "java.util.ArrayList"
+    "ARRAY": "java.util.ArrayList",
+    "SET": "java.util.Set",
+    "HASH_SET": "java.util.HashSet"
 }
 
 SIMPLE_TYPES = {
@@ -225,6 +227,7 @@ def send_rpc_probe(url, rpc_call):
         "X-GWT-Module-Base": BASE_URL,
     }
     try:
+
         response = requests.post(
             url, data=rpc_call.replace("§", ""),
             headers=headers, proxies=PROXIES, cookies=COOKIES, auth=HTTP_AUTH, verify=False
@@ -374,7 +377,7 @@ def get_method_parameter_values(code, line, full_sig):
             param = param.replace(" ", "_").replace("|", "\\!").replace("\\", "\\\\")
             param_list.append(f"§param_{param}§")
         line += 1
-
+    #print(param_list)
     return param_list
 
 def normalise_signature(method_signature):
@@ -383,7 +386,7 @@ def normalise_signature(method_signature):
 
     # Specific logic for normalizing the script's custom java.util.List type format
     list_object_pattern = re.compile(
-        r"(java\.util\.(?:[A-Za-z]+)?List(?:[0-9\/]+)?)<([a-zA-Z0-9\.\/]+)[<>]?(?:(.*[^>]))?>"
+        r"(java\.util\.(?:[A-Za-z]+)?(?:List|Set)(?:[0-9\/]+)?)<([a-zA-Z0-9\.\/]+)[<>]?(?:(.*[^>]))?>"
     )
 
     for i, sig in enumerate(normalised):
@@ -404,7 +407,7 @@ def generate_parameter_map(rpc_blocks, full_signature, param_values):
     """ Returns the RPC parameter map for the given method, as a List """
     parameter_map = []
     list_object_pattern = re.compile(
-        r"(java\.util\.(?:[A-Za-z]+)?List(?:[0-9/]+)?)<([a-zA-Z0-9./]+)[<>]?(?:(.*[^>]))?>"
+        r"(java\.util\.(?:[A-Za-z]+)?(?:List|Set)(?:[0-9/]+)?)<([a-zA-Z0-9./]+)[<>]?(?:(.*[^>]))?>"
     )
 
     # Append type index for each parameter value
@@ -551,6 +554,10 @@ def extract_method_signature(code, line):
             parameter += f"<{COMPLEX_TYPES['ARRAY']}/4159755760"
             parameter += f"<{COMPLEX_TYPES['STRING']}/2004016611>>"
 
+        if parameter.startswith(COMPLEX_TYPES["SET"]):
+            parameter += f"<{COMPLEX_TYPES['HASH_SET']}/3273092938"
+            parameter += f"<{COMPLEX_TYPES['STRING']}/2004016611>>"
+    
         # If specific List implementation found, assume it is of Strings
         elif re.match(r"java\.util\.[A-Za-z]+List/.*", parameter):
             parameter += f"<{COMPLEX_TYPES['STRING']}/2004016611>"
@@ -659,7 +666,10 @@ def set_http_params(args):
     requests.packages.urllib3.disable_warnings()
 
     if args.proxy is not None:
-        PROXIES = {args.proxy.split(":")[0].lower(): args.proxy}
+        PROXIES = {
+            "http": args.proxy,
+            "https": args.proxy
+            }
 
     if args.cookies is not None:
         cookies_list = {}
